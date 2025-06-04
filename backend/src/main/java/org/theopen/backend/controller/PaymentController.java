@@ -1,6 +1,8 @@
 package org.theopen.backend.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,10 +17,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PaymentController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
+
     private final PaymentService paymentService;
 
     @PostMapping("/create")
     public ResponseEntity<PaymentResponseDto> createPayment(@RequestBody PaymentRequestDto request) {
+        logger.info("Create payment request body: {}", request);
         PaymentResponseDto response = paymentService.createPaymentLink(request);
         return ResponseEntity.ok(response);
     }
@@ -26,6 +31,7 @@ public class PaymentController {
     @PostMapping("/notify")
     public ResponseEntity<String> handleTinkoffCallback(@RequestBody String payload,
                                                          @RequestHeader Map<String, String> headers) {
+        logger.info("Tinkoff notify request body: {}", payload);
         boolean success = paymentService.processTinkoffCallback(payload, headers);
         return success ? ResponseEntity.ok("OK") : ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid");
     }
