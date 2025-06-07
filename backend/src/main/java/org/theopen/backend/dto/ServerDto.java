@@ -9,15 +9,21 @@ import org.theopen.backend.model.Server;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ServerDto {
-    private Long id;
-    private String name;
-    private String country;
+    private CountryDto country;
 
     public static ServerDto fromEntity(Server server) {
-        return new ServerDto(
-            server.getId(),
-            server.getName(),
-            server.getCountry()
-        );
+        ServerDto dto = new ServerDto();
+        // Если есть связь с Country, используем её, иначе берём строку country
+        if (server.getCountryEntity() != null) {
+            dto.setCountry(CountryDto.fromEntity(server.getCountryEntity()));
+        } else if (server.getCountry() != null) {
+            // Используем строку как имя страны, но без code (флаг не будет работать)
+            CountryDto countryDto = new CountryDto();
+            countryDto.setName(server.getCountry());
+            dto.setCountry(countryDto);
+        }
+
+        return dto;
     }
 }
+

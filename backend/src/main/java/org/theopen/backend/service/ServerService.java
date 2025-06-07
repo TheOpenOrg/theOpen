@@ -34,5 +34,24 @@ public class ServerService {
         return servers.isEmpty() ? Optional.empty() :
             Optional.of(servers.get(ThreadLocalRandom.current().nextInt(servers.size())));
     }
-}
 
+    /**
+     * Возвращает список уникальных серверов, по одному для каждой доступной страны.
+     * Если в стране несколько серверов, выбирается первый.
+     */
+    public List<ServerDto> getAvailableCountries() {
+        return serverRepository.findAll().stream()
+                .filter(server -> server.getCountryEntity() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        server -> server.getCountryEntity().getId(),
+                        java.util.stream.Collectors.collectingAndThen(
+                                java.util.stream.Collectors.toList(),
+                                list -> list.get(0)
+                        )
+                ))
+                .values()
+                .stream()
+                .map(ServerDto::fromEntity)
+                .toList();
+    }
+}

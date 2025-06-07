@@ -29,4 +29,11 @@ public class ServerController {
         ServerDto server = serverService.getServerById(id);
         return ResponseEntity.ok(server);
     }
+
+    @GetMapping("/available-countries")
+    public ResponseEntity<List<ServerDto>> getAvailableCountries() {
+        List<ServerDto> uniqueCountryServers = serverService.getAvailableCountries();
+        return ResponseEntity.ok(uniqueCountryServers);
+    }
 }
+

@@ -1,41 +1,67 @@
 <template>
   <div class="server-list-container">
-    <h1 class="title">Выберите сервер</h1>
-    <div class="servers">
-      <div
-        v-for="server in servers"
-        :key="server.id"
-        class="server-card"
-      >
-        <h2 class="server-name">{{ server.name }}</h2>
-        <p class="server-description">{{ server.description }}</p>
-        <ul class="server-benefits">
-          <li v-for="(benefit, idx) in server.benefits" :key="idx">
-            {{ benefit }}
-          </li>
-        </ul>
+    <div class="country-list">
+      <div class="server-grid">
+        <div
+          v-for="item in countries"
+          :key="item.country.id"
+          class="server-card"
+          :class="{ selected: selectable && selectedId === item.country.id }"
+          @click="selectable && $emit('select', item.country.id)"
+        >
+          <div class="server-info">
+            <div class="flex items-center gap-2">
+              <img alt="flag" src="https://primefaces.org/cdn/primevue/images/flag/flag_placeholder.png" :class="`flag flag-${item.country?.code}`" style="width: 32px" />
+              <span class="server-country">{{ item.country?.nameRu || item.country?.name || 'Неизвестно' }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { serverApi } from '../services/api';
+
 export default {
   name: 'ServerList',
+  props: {
+    selectable: {
+      type: Boolean,
+      default: false
+    },
+    selectedId: {
+      type: [String, Number, null],
+      default: null
+    }
+  },
+  emits: ['select'],
   data() {
     return {
-      servers: [],
+      countries: [{
+        "country": {
+          "id": 2,
+          "name": "USA",
+          "code": "us",
+          "nameRu": "США"
+        }
+      }],
+      loading: false,
+      error: null
     };
   },
   async mounted() {
+    this.loading = true;
+    this.error = null;
     try {
-      const response = await fetch(import.meta.env.VITE_API_URL + '/api/servers/available');
-      const data = await response.json();
-      // Ожидается, что у сервера есть name, description, benefits (массив)
-      this.servers = data;
+      this.countries = await serverApi.getAvailableCountries();
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('Ошибка загрузки серверов', e);
+      console.error('Ошибка загрузки списка стран', e);
+      this.error = 'Не удалось загрузить список стран';
+    } finally {
+      this.loading = false;
     }
   },
 };
@@ -43,72 +69,128 @@ export default {
 
 <style scoped>
 .server-list-container {
-  min-height: 100vh;
-  background: #f7fafd;
-  padding: 40px 0;
+  min-height: auto;
+  padding: 20px 0;
   font-family: 'Inter', Arial, sans-serif;
 }
 .title {
   text-align: center;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #222;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   letter-spacing: 0.02em;
 }
-.servers {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 32px;
+.country-list {
+  max-width: 95%;
+  margin: 0 auto;
+}
+@media (min-width: 768px) {
+  .country-list {
+    max-width: 90%;
+  }
+}
+@media (min-width: 1024px) {
+  .country-list {
+    max-width: 1000px;
+  }
+}
+.server-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 12px;
+}
+@media (min-width: 480px) {
+  .server-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 768px) {
+  .server-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+@media (min-width: 1024px) {
+  .server-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
 }
 .server-card {
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.07);
-  padding: 32px 28px;
-  width: 340px;
-  transition: box-shadow 0.2s;
+  background: #f8fbfd;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.05);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid #e8eef2;
+  height: 100%;
 }
 .server-card:hover {
-  box-shadow: 0 8px 32px 0 rgba(0,0,0,0.13);
+  box-shadow: 0 4px 12px 0 rgba(0,0,0,0.1);
+  transform: translateY(-2px);
 }
-.server-name {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: #0a1a2f;
-  margin-bottom: 10px;
+.server-card.selected {
+  background: #e6f7f4;
+  border-color: #00e0c6;
 }
-.server-description {
-  font-size: 1rem;
-  color: #4a5a6a;
+.server-info {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 16px;
+  flex-grow: 1;
 }
-.server-benefits {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.server-benefits li {
-  font-size: 0.98rem;
+.server-country {
+  font-size: 1rem;
   color: #1a2a3a;
-  margin-bottom: 7px;
-  padding-left: 1.2em;
-  position: relative;
+  font-weight: 500;
 }
-.server-benefits li:before {
+.server-properties {
+  margin-top: 12px;
+}
+.server-property {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: #4a5a6a;
+}
+.property-name {
+  margin-left: 4px;
+}
+.server-property:before {
   content: '';
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   background: #00e0c6;
   border-radius: 50%;
-  position: absolute;
-  left: 0;
-  top: 7px;
+  margin-right: 8px;
 }
-</style>
+.server-footer {
+  margin-top: auto;
+}
+.select-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #00e0c6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.select-button:hover {
+  background: #00c4ad;
+}
+.select-button.disabled {
+  background: #6ed7c6;
+  cursor: default;
+}
 
+</style>
