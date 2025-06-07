@@ -1,10 +1,10 @@
 <script setup>
-import ServerList from './components/ServerList.vue'
+import StepperPage from './components/StepperPage.vue'
 </script>
 
 <template>
   <main>
-    <ServerList />
+    <StepperPage />
   </main>
 </template>
 
