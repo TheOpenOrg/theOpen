@@ -1,1 +1,7 @@
+# Исключить файл frontend.iml
+frontend/frontend.iml
+frontend/firebase
+
+# Исключить все файлы и папки в директории firebase
+firebase/
 .idea
