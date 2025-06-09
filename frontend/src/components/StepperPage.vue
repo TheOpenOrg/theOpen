@@ -51,7 +51,7 @@
         <StepPanel v-slot="{ activateCallback }" :value="1">
           <div class="flex flex-col gap-2 mx-auto" style="min-height: 16rem; max-width: auto">
             <div class="text-center mt-4 mb-4 text-xl font-semibold">Выберите страну для подключения</div>
-            <ServerList :selectable="true" :selectedId="selectedServer" @select="val => selectedServer = val"/>
+            <ServerList :selectable="true" :selected-country="selectedServer" @select="val => selectedServer = val"/>
           </div>
           <div class="flex pt-6 justify-end">
             <Button label="Next" icon="pi pi-arrow-right" :disabled="!selectedServer" @click="activateCallback(2)"/>
@@ -124,7 +124,7 @@
               <div class="flex flex-col gap-2">
                 <div class="flex justify-between">
                   <span>Сервер:</span>
-                  <span class="font-medium">{{ selectedServer }}</span>
+                  <span class="font-medium">{{ selectedServer?.nameRu }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Срок подписки:</span>
@@ -295,4 +295,5 @@ function applyPromoCode() {
 
 <style scoped>
 </style>
+
 

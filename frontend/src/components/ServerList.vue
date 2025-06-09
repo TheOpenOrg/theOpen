@@ -6,8 +6,8 @@
           v-for="item in countries"
           :key="item.country.id"
           class="server-card"
-          :class="{ selected: selectable && selectedId === item.country.id }"
-          @click="selectable && $emit('select', item.country.id)"
+          :class="{ selected: selectable && selectedCountry?.id === item.country.id }"
+          @click="selectable && $emit('select', item.country)"
         >
           <div class="server-info">
             <div class="flex items-center gap-2">
@@ -31,8 +31,8 @@ export default {
       type: Boolean,
       default: false
     },
-    selectedId: {
-      type: [String, Number, null],
+    selectedCountry: {
+      type: [String, Number, Object, null],
       default: null
     }
   },
