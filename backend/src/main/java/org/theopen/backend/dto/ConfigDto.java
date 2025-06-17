@@ -17,7 +17,6 @@ public class ConfigDto {
     private int monthAmount;
     private LocalDateTime buyTime;
     private boolean isActive;
-    private String paymentStatus;
 
     public static ConfigDto fromEntity(Config config) {
         return new ConfigDto(
@@ -26,8 +25,7 @@ public class ConfigDto {
             config.getUser().getId(),
             config.getMonthAmount(),
             config.getBuyTime(),
-            config.getIsActive(),
-            config.getPaymentStatus()
+            config.getIsActive()
         );
     }
 }

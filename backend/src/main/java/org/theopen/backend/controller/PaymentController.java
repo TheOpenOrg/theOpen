@@ -6,8 +6,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.theopen.backend.dto.PaymentRequestDto;
-import org.theopen.backend.dto.PaymentResponseDto;
 import org.theopen.backend.service.PaymentService;
 
 import java.util.Map;
@@ -20,13 +18,6 @@ public class PaymentController {
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
     private final PaymentService paymentService;
-
-    @PostMapping("/create")
-    public ResponseEntity<PaymentResponseDto> createPayment(@RequestBody PaymentRequestDto request) {
-        logger.info("Create payment request body: {}", request);
-        PaymentResponseDto response = paymentService.createPaymentLink(request);
-        return ResponseEntity.ok(response);
-    }
 
     @PostMapping("/notify")
     public ResponseEntity<String> handleTinkoffCallback(@RequestBody String payload,

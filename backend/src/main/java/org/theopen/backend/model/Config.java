@@ -24,12 +24,11 @@ public class Config {
     private LocalDateTime buyTime;
     @Column(name="is_active")
     private Boolean isActive;
-    @Column(name="payment_status")
-    private String paymentStatus;
-    @Column(name="payment_link")
-    private String paymentLink;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "payment_id")
+    private Payment payment;
     @Column(name="is_trial")
     private Boolean isTrial;
-    @Column(name="extra_config")
-    private String extraConfig;
+    @Column(name = "name")
+    private String name;
 }

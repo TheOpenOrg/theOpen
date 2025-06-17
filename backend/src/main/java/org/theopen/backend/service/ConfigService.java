@@ -46,7 +46,6 @@ public class ConfigService {
         config.setMonthAmount(request.getMonthAmount());
         config.setBuyTime(LocalDateTime.now());
         config.setIsActive(true);
-        config.setPaymentStatus("pending");
 
         Config saved = configRepository.save(config);
         return ConfigDto.fromEntity(saved);
@@ -75,7 +74,7 @@ public class ConfigService {
         config.setMonthAmount(0);
         config.setBuyTime(LocalDateTime.now());
         config.setIsActive(true);
-        config.setPaymentStatus("trial");
+        config.setIsTrial(true);
 
         return ConfigDto.fromEntity(configRepository.save(config));
     }
