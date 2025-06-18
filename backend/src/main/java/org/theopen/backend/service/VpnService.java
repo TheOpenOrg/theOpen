@@ -3,12 +3,15 @@ package org.theopen.backend.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.theopen.backend.dto.ConfigsRequestDto;
 import org.theopen.backend.dto.VpnConfigResponseDto;
 import org.theopen.backend.dto.PaymentRequestDto;
+import org.theopen.backend.exception.ServerApiException;
+import org.theopen.backend.exception.VpnConfigException;
 import org.theopen.backend.model.Config;
 import org.theopen.backend.model.Payment;
 import org.theopen.backend.model.Server;
@@ -49,43 +52,36 @@ public class VpnService {
      * @return объект с результатом операции и возможный конфигурационный файл
      */
     public VpnConfigResponseDto getClientConfig(String clientName) {
-        try {
-            HttpHeaders headers = createAuthHeaders();
-            headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
+        HttpHeaders headers = createAuthHeaders();
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
 
-            String url = vpnServerUrl + "/api/configs/" + clientName;
+        String url = vpnServerUrl + "/api/configs/" + clientName;
 
-            ResponseEntity<byte[]> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    byte[].class
-            );
+        ResponseEntity<byte[]> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                byte[].class
+        );
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                String fileName = clientName + ".ovpn";
-                byte[] configData = response.getBody();
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            String fileName = clientName + ".ovpn";
+            byte[] configData = response.getBody();
 
-                // Сохраняем файл в хранилище
+            // Сохраняем файл в хранилище
+            try {
                 saveConfigToStorage(clientName, configData);
-
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .configFile(configData)
-                        .fileName(fileName)
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to get config")
-                        .build();
+            } catch (IOException e) {
+                throw new VpnConfigException(e.getMessage());
             }
-        } catch (Exception e) {
-            log.error("Error getting client config for {}: {}", clientName, e.getMessage(), e);
+
             return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(e.getMessage())
+                    .status("success")
+                    .configFile(configData)
+                    .fileName(fileName)
                     .build();
+        } else {
+            throw new VpnConfigException("Не удалось получить конфигурацию клиента " + clientName);
         }
     }
 
@@ -96,36 +92,24 @@ public class VpnService {
      * @return объект с результатом операции
      */
     public VpnConfigResponseDto blockClient(String clientName) {
-        try {
-            HttpHeaders headers = createAuthHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = createAuthHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String url = vpnServerUrl + "/api/block/" + clientName;
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                new ParameterizedTypeReference<>() {
+                }
+        );
 
-            String url = vpnServerUrl + "/api/block/" + clientName;
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    new HttpEntity<>(headers),
-                    Map.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .message("Client blocked successfully")
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to block client")
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("Error blocking client {}: {}", clientName, e.getMessage(), e);
+        if (response.getStatusCode() == HttpStatus.OK) {
             return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(e.getMessage())
+                    .status("success")
+                    .message("Client blocked successfully")
                     .build();
+        } else {
+            throw new VpnConfigException("Не удалось заблокировать клиента " + clientName);
         }
     }
 
@@ -136,35 +120,23 @@ public class VpnService {
      * @return объект с результатом операции
      */
     public VpnConfigResponseDto unblockClient(String clientName) {
-        try {
-            HttpHeaders headers = createAuthHeaders();
+        HttpHeaders headers = createAuthHeaders();
+        String url = vpnServerUrl + "/api/block/" + clientName;
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.DELETE,
+                new HttpEntity<>(headers),
+                new ParameterizedTypeReference<>() {
+                }
+        );
 
-            String url = vpnServerUrl + "/api/block/" + clientName;
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.DELETE,
-                    new HttpEntity<>(headers),
-                    Map.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .message("Client unblocked successfully")
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to unblock client")
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("Error unblocking client {}: {}", clientName, e.getMessage(), e);
+        if (response.getStatusCode() == HttpStatus.OK) {
             return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(e.getMessage())
+                    .status("success")
+                    .message("Client unblocked successfully")
                     .build();
+        } else {
+            throw new VpnConfigException("Не удалось разблокировать клиента " + clientName);
         }
     }
 
@@ -175,53 +147,24 @@ public class VpnService {
      * @return объект с результатом операции
      */
     public VpnConfigResponseDto createClientConfig(String clientName) {
-        try {
-            HttpHeaders headers = createAuthHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = createAuthHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-            String url = vpnServerUrl + "/api/create/" + clientName;
+        String url = vpnServerUrl + "/api/create/" + clientName;
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    new HttpEntity<>(headers),
-                    Map.class
-            );
-            if (response.getStatusCode() == HttpStatus.OK) {
-                // После успешного создания, получаем конфигурационный файл
-                return getClientConfig(clientName);
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to create client config")
-                        .build();
-            }
-        } catch (org.springframework.web.client.HttpServerErrorException e) {
-            log.error("Error creating client config for {}: {}", clientName, e.getMessage());
-            String userMessage = "Не удалось создать конфигурацию клиента. Попробуйте позже.";
-            try {
-                // Пытаемся извлечь текст ошибки из тела ответа
-                String responseBody = e.getResponseBodyAsString();
-                if (responseBody.contains("error")) {
-                    // Примитивное извлечение текста ошибки из JSON
-                    int idx = responseBody.indexOf(":");
-                    int endIdx = responseBody.lastIndexOf('"');
-                    if (idx > 0 && endIdx > idx) {
-                        userMessage = responseBody.substring(idx + 2, endIdx);
-                    }
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                new ParameterizedTypeReference<>() {
                 }
-            } catch (Exception ignored) {
-            }
-            return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(userMessage)
-                    .build();
-        } catch (Exception e) {
-            log.error("Error creating client config for {}: {}", clientName, e.getMessage());
-            return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error("Не удалось создать конфигурацию клиента. Попробуйте позже.")
-                    .build();
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            // После успешного создания, получаем конфигурационный файл
+            return getClientConfig(clientName);
+        } else {
+            throw new VpnConfigException("Не удалось создать конфигурацию клиента " + clientName);
         }
     }
 
@@ -231,36 +174,24 @@ public class VpnService {
      * @return объект с результатом операции
      */
     public VpnConfigResponseDto getActiveUsers() {
-        try {
-            HttpHeaders headers = createAuthHeaders();
+        HttpHeaders headers = createAuthHeaders();
+        String url = vpnServerUrl + "/api/active-users";
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                new ParameterizedTypeReference<>() {
+                }
+        );
 
-            String url = vpnServerUrl + "/api/active-users";
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    Map.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Integer activeUsers = (Integer) response.getBody().get("active_users");
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .activeUsers(activeUsers)
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to get active users count")
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("Error getting active users count: {}", e.getMessage(), e);
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            Integer activeUsers = (Integer) response.getBody().get("active_users");
             return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(e.getMessage())
+                    .status("success")
+                    .activeUsers(activeUsers)
                     .build();
+        } else {
+            throw new VpnConfigException("Не удалось получить количество активных пользователей");
         }
     }
 
@@ -311,7 +242,7 @@ public class VpnService {
      * Создает несколько конфигураций на наименее загруженном сервере выбранной страны
      *
      * @param request объект запроса с параметрами
-     * @return список результатов создания конфигураций
+     * @return платеж, связанный с созданными конфигурациями
      */
     public Optional<Payment> createMultipleConfigs(ConfigsRequestDto request) {
         log.info("Creating {} configs for country ID {} for {} months",
@@ -323,40 +254,67 @@ public class VpnService {
         paymentRequest.setDescription("Оплата theOpen-конфигураций");
         Optional<Payment> payment = paymentService.createPaymentLink(paymentRequest);
 
-        // 2. Продолжаем создание конфигураций
-        List<Server> servers = serverRepository.findByCountryEntityId(request.getCountryId());
-        if (servers.isEmpty()) {
-            log.error("No servers found for country ID {}", request.getCountryId());
+        if (payment.isEmpty()) {
+            // Если не удалось создать платеж, выходим с ошибкой
+            log.error("Failed to create payment for configs");
             return Optional.empty();
         }
-        Server leastLoadedServer = findLeastLoadedServer(servers);
-        if (leastLoadedServer == null) {
-            log.error("Failed to find least loaded server for country ID {}", request.getCountryId());
-            return Optional.empty();
-        }
-        log.info("Selected server {} for creating configs", leastLoadedServer.getName());
-        List<VpnConfigResponseDto> results = new ArrayList<>();
-        for (int i = 0; i < request.getConfigsCount(); i++) {
-            String clientName = generateClientName(request.getCountryId(), i);
-            VpnConfigResponseDto result = createClientConfigOnServer(clientName, leastLoadedServer, request.getMonths(), payment);
-            results.add(result);
-            if (!"success".equals(result.getStatus())) {
-                log.error("Error creating config {} of {}", i + 1, request.getConfigsCount());
-                break;
+
+        try {
+            // 2. Продолжаем создание конфигураций
+            List<Server> servers = serverRepository.findByCountryEntityId(request.getCountryId());
+            log.info("{} servers created", servers.size());
+            log.info("Servers found for country ID {}: {}", request.getCountryId(), servers);
+            if (servers.isEmpty()) {
+                throw new VpnConfigException("Серверы для выбранной страны (ID: " + request.getCountryId() + ") не найдены");
+            }
+
+            Server leastLoadedServer = findLeastLoadedServer(servers);
+            if (leastLoadedServer == null) {
+                throw new VpnConfigException("Не удалось выбрать подходящий сервер для страны с ID: " + request.getCountryId());
+            }
+
+            log.info("Selected server {} for creating configs", leastLoadedServer.getName());
+
+            for (int i = 0; i < request.getConfigsCount(); i++) {
+                String clientName = generateClientName(request.getCountryId(), i);
+                VpnConfigResponseDto result = createClientConfigOnServer(clientName, leastLoadedServer, request.getMonths(), payment);
+                if (!"success".equals(result.getStatus())) {
+                    throw new VpnConfigException("Не удалось создать конфигурацию " + (i + 1) + " из " + request.getConfigsCount());
+                }
+            }
+
+            return payment;
+        } catch (Exception e) {
+            // Если произошла ошибка при создании конфигураций, отменяем платеж
+            log.error("Error creating configs after payment: {}", e.getMessage());
+            Payment paymentEntity = payment.get();
+            boolean canceled = paymentService.cancelPayment(paymentEntity);
+
+            if (canceled) {
+                log.info("Payment {} successfully canceled due to error in config creation", paymentEntity.getPaymentId());
+            } else {
+                log.error("Failed to cancel payment {} after error in config creation", paymentEntity.getPaymentId());
+            }
+
+            // Независимо от результата отмены платежа, пробрасываем исходное исключение дальше
+            if (e instanceof VpnConfigException) {
+                throw (VpnConfigException) e;
+            } else {
+                throw new VpnConfigException("Ошибка при создании конфигураций: " + e.getMessage());
             }
         }
-        return payment;
     }
 
     /**
      * Находит наименее загруженный сервер из списка
      *
      * @param servers список серверов
-     * @return наименее загруженный сервер или null в случае ошибки
+     * @return наименее загруженный сервер
      */
     private Server findLeastLoadedServer(List<Server> servers) {
         if (servers.isEmpty()) {
-            return null;
+            throw new VpnConfigException("Список серверов пуст");
         }
 
         // Если сервер всего один, возвращаем его
@@ -367,21 +325,17 @@ public class VpnService {
         // Получаем загруженность для каждого сервера
         Map<Server, Integer> serverLoads = new HashMap<>();
         for (Server server : servers) {
-            try {
-                Integer activeUsers = getActiveUsersForServer(server);
-                serverLoads.put(server, activeUsers != null ? activeUsers : Integer.MAX_VALUE);
-            } catch (Exception e) {
-                log.error("Error getting active users for server {}: {}", server.getName(), e.getMessage());
-                serverLoads.put(server, Integer.MAX_VALUE);
-            }
+            Integer activeUsers = getActiveUsersForServer(server);
+            serverLoads.put(server, activeUsers != null ? activeUsers : Integer.MAX_VALUE);
         }
 
         // Находим минимальную загрузку
-        Optional<Integer> minLoad = serverLoads.values().stream().min(Integer::compareTo);
+        int minLoad = serverLoads.values().stream().min(Integer::compareTo)
+                .orElseThrow(() -> new VpnConfigException("Не удалось определить нагрузку серверов"));
 
         // Получаем все серверы с минимальной загрузкой
         List<Server> leastLoadedServers = serverLoads.entrySet().stream()
-                .filter(entry -> entry.getValue().equals(minLoad.get()))
+                .filter(entry -> entry.getValue().equals(minLoad))
                 .map(Map.Entry::getKey)
                 .toList();
 
@@ -389,8 +343,10 @@ public class VpnService {
         if (leastLoadedServers.size() > 1) {
             int randomIndex = new Random().nextInt(leastLoadedServers.size());
             return leastLoadedServers.get(randomIndex);
-        } else {
+        } else if (!leastLoadedServers.isEmpty()) {
             return leastLoadedServers.get(0);
+        } else {
+            throw new VpnConfigException("Не найден подходящий сервер с минимальной нагрузкой");
         }
     }
 
@@ -398,7 +354,7 @@ public class VpnService {
      * Получает количество активных пользователей для конкретного сервера
      *
      * @param server сервер
-     * @return количество активных пользователей или null в случае ошибки
+     * @return количество активных пользователей
      */
     private Integer getActiveUsersForServer(Server server) {
         try {
@@ -407,20 +363,21 @@ public class VpnService {
 
             String url = server.getApiUrl() + "/api/active-users";
 
-            ResponseEntity<Map> response = restTemplate.exchange(
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
                     new HttpEntity<>(headers),
-                    Map.class
+                    new ParameterizedTypeReference<>() {
+                    }
             );
-
+            log.info("Response from server {}: {}", server.getName(), response.getBody());
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 return (Integer) response.getBody().get("active_users");
             }
+            throw new ServerApiException("Не удалось получить количество активных пользователей для сервера " + server.getName());
         } catch (Exception e) {
-            log.error("Error getting active users for server {}: {}", server.getName(), e.getMessage());
+            throw new ServerApiException("Ошибка при получении данных о пользователях сервера " + server.getName());
         }
-        return null;
     }
 
     /**
@@ -433,93 +390,36 @@ public class VpnService {
      * @return результат операции
      */
     private VpnConfigResponseDto createClientConfigOnServer(String clientName, Server server, Integer monthAmount, Optional<Payment> payment) {
-        try {
-//            TODO проверь если у пользователя уже была триал версия, то не давать создавать новую
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + server.getApiToken());
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            String url = server.getApiUrl() + "/api/create/" + clientName;
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    new HttpEntity<>(headers),
-                    Map.class
-            );
-            if (response.getStatusCode() == HttpStatus.OK) {
-                Config config = new Config();
-                config.setServer(server);
-                config.setBuyTime(LocalDateTime.now());
-                config.setIsActive(payment.isEmpty());
-                config.setMonthAmount(monthAmount);
-                config.setName(clientName);
-                config.setPayment(payment.orElse(null));
-                config.setIsTrial(payment.isEmpty());
-                configRepository.save(config);
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .message("Config successfully created and saved to database")
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to create client config")
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("Error creating client config for {}: {}", clientName, e.getMessage());
+        //TODO проверь если у пользователя уже была триал версия, то не давать создавать новую
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + server.getApiToken());
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String url = server.getApiUrl() + "/api/create/" + clientName;
+
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                new ParameterizedTypeReference<>() {
+                }
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            Config config = new Config();
+            config.setServer(server);
+            config.setBuyTime(LocalDateTime.now());
+            config.setIsActive(payment.isEmpty());
+            config.setMonthAmount(monthAmount);
+            config.setName(clientName);
+            config.setPayment(payment.orElse(null));
+            config.setIsTrial(payment.isEmpty());
+            configRepository.save(config);
             return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error("Не удалось создать конфигурацию клиента. Попробуйте позже.")
+                    .status("success")
+                    .message("Config successfully created and saved to database")
                     .build();
-        }
-    }
-
-    /**
-     * Получает конфигурационный файл с конкретного сервера
-     *
-     * @param clientName имя клиента
-     * @param server     сервер
-     * @return результат операции с конфигурационным файлом
-     */
-    private VpnConfigResponseDto getClientConfigFromServer(String clientName, Server server) {
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + server.getApiToken());
-            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
-
-            String url = server.getApiUrl() + "/api/configs/" + clientName;
-
-            ResponseEntity<byte[]> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    byte[].class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                String fileName = clientName + ".ovpn";
-                byte[] configData = response.getBody();
-
-                // Сохраняем файл в хранилище
-                saveConfigToStorage(clientName, configData);
-
-                return VpnConfigResponseDto.builder()
-                        .status("success")
-                        .configFile(configData)
-                        .fileName(fileName)
-                        .build();
-            } else {
-                return VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Failed to get config")
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("Error getting client config for {}: {}", clientName, e.getMessage());
-            return VpnConfigResponseDto.builder()
-                    .status("error")
-                    .error(e.getMessage())
-                    .build();
+        } else {
+            throw new VpnConfigException("Не удалось создать конфигурацию клиента на сервере " + server.getName());
         }
     }
 
@@ -531,4 +431,3 @@ public class VpnService {
         return "client-" + countryId + "-" + timestamp + "-" + index;
     }
 }
-

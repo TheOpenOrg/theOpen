@@ -49,7 +49,7 @@ public class PaymentService {
         body.put("Token", token);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(
-            tinkoffApiUrl + "/Init", body, Map.class
+                tinkoffApiUrl + "/Init", body, Map.class
         );
 
         Map<String, Object> resp = response.getBody();
@@ -140,6 +140,53 @@ public class PaymentService {
         return payment.getStatus();
     }
 
+    /**
+     * Отменяет платеж, вызывая Tinkoff API Cancel
+     *
+     * @param payment объект платежа для отмены
+     * @return true если отмена прошла успешно, false в противном случае
+     */
+    public boolean cancelPayment(Payment payment) {
+        if (payment == null) {
+            log.error("Cannot cancel null payment");
+            return false;
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("TerminalKey", terminalKey);
+        body.put("PaymentId", payment.getPaymentId());
+        String token = generateToken(body);
+        body.put("Token", token);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    tinkoffApiUrl + "/Cancel", body, Map.class
+            );
+
+            Map<String, Object> resp = response.getBody();
+            log.info("Payment cancellation response: {}", resp);
+
+            if (resp != null && Boolean.TRUE.equals(resp.get("Success"))) {
+                // Обновляем статус платежа
+                payment.setStatus("CANCELED");
+                paymentRepository.save(payment);
+                return true;
+            } else {
+                log.error("Failed to cancel payment {}: {}", payment.getPaymentId(), resp);
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Error canceling payment {}: {}", payment.getPaymentId(), e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Генерирует токен безопасности для API Tinkoff
+     *
+     * @param params параметры запроса
+     * @return токен безопасности
+     */
     private String generateToken(Map<String, Object> params) {
         // Копируем только корневые параметры (без вложенных объектов и массивов)
         Map<String, String> flatParams = new HashMap<>();
@@ -178,3 +225,4 @@ public class PaymentService {
         }
     }
 }
+
