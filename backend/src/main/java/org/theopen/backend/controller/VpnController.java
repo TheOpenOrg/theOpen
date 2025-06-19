@@ -100,17 +100,18 @@ public class VpnController {
      * @return список с результатами операций создания конфигураций
      */
     @GetMapping("/configs")
-    public ResponseEntity<Void> createMultipleConfigs(
+    public ResponseEntity<?> createMultipleConfigs(
             @RequestParam Long countryId,
             @RequestParam Integer months,
             @RequestParam Integer configsCount,
-            @RequestParam(required = false) Long telegramId
+            @RequestParam Long telegramId
     ) {
         log.info("Creating multiple VPN configs: {} for country ID: {} for {} months", configsCount, countryId, months);
         ConfigsRequestDto request = new ConfigsRequestDto();
         request.setCountryId(countryId);
         request.setMonths(months);
         request.setConfigsCount(configsCount);
+        request.setTelegramId(telegramId);
         // 1. Создаем конфиги и получаем paymentUrl
         Optional<Payment> payment = vpnService.createMultipleConfigs(request);
 
@@ -119,10 +120,17 @@ public class VpnController {
         }
 
         Optional<Payment> paymentQr = paymentService.createQr(payment);
-        return paymentQr.<ResponseEntity<Void>>map(value ->
-                ResponseEntity.status(302).header("Location", value.getUrl()).build()
-        ).orElseGet(() -> ResponseEntity.badRequest().build());
-
+        if (paymentQr.isPresent()) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("paymentUrl", paymentQr.get().getUrl());
+            return ResponseEntity.ok(response);
+        } else {
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "Не удалось создать QR-код для оплаты");
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 
     /**

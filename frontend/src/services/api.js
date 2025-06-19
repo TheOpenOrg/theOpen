@@ -45,12 +45,29 @@ export const userApi = {
   telegramAuth: (data) => api.post('/api/users/auth/telegram', data),
 };
 
+// Методы для работы с VPN конфигурациями
+export const vpnApi = {
+  // Создать VPN конфигурации
+  createVpnConfigs: (params) => {
+    const { countryId, months, configsCount, telegramId } = params;
+    return api.get(`/api/vpn/configs`, {
+      params: { countryId, months, configsCount, telegramId },
+      withCredentials: true,
+      // Обрабатываем случай, когда приходит ответ с перенаправлением
+      validateStatus: status => {
+        return (status >= 200 && status < 300) || status === 302;
+      },
+      maxRedirects: 0
+    });
+  }
+};
+
 // Методы для работы с платежами
 export const paymentApi = {
   // Создать платеж
   createPayment: (data) => api.post('/api/payments/create', data),
 
-  // Проверить статус платежа
+  // Проверить статус п��атежа
   checkPaymentStatus: (id) => api.get(`/api/payments/${id}/status`),
 };
 

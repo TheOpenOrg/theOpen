@@ -16,7 +16,7 @@ public class Config {
     @JoinColumn(name = "server_id")
     private Server server;
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "uid")
+    @JoinColumn(name = "uid", referencedColumnName = "tg_id")
     private User user;
     @Column(name="month_amount")
     private Integer monthAmount;

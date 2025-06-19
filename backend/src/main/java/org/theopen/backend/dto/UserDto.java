@@ -9,11 +9,11 @@ import org.theopen.backend.model.User;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserDto {
-    private Long id;
     private Long tgId;
     private String name;
 
     public static UserDto fromEntity(User user) {
-        return new UserDto(user.getId(), user.getTgId(), user.getName());
+        return new UserDto(user.getTgId(), user.getName());
     }
 }
+

@@ -195,13 +195,15 @@
 </template>
 
 <script setup>
-import {ref} from 'vue';
+import {ref, onMounted} from 'vue';
 import Stepper from 'primevue/stepper';
 import Button from 'primevue/button';
 import ServerList from './ServerList.vue';
 import InputText from 'primevue/inputtext';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
+import axios from 'axios';
+import { vpnApi } from '../services/api';
 
 const activeStep = ref(1);
 const name = ref();
@@ -217,6 +219,47 @@ const option7 = ref(false);
 const option8 = ref(false);
 const option9 = ref(false);
 const option10 = ref(false);
+
+const telegramId = ref(null);
+
+// Получаем telegramId из Telegram WebApp API
+onMounted(async () => {
+  await fetchTelegramProfile();
+});
+
+function fetchTelegramProfile() {
+  try {
+    // Проверяем наличие Telegram WebApp API
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+      const tg_user = window.Telegram.WebApp.initDataUnsafe.user;
+      telegramId.value = tg_user.id;
+
+      // Показываем Telegram ID через alert
+      alert(`Telegram ID: ${tg_user.id}\nИмя: ${tg_user.first_name || 'Не указано'}`);
+
+      // Сохраняем информацию в localStorage для дальнейшего использования
+      localStorage.setItem('userInfo', JSON.stringify({
+        tgId: tg_user.id,
+        name: tg_user.first_name
+      }));
+    } else {
+      console.warn('Telegram WebApp API не доступен. Использую тестовый ID.');
+      // Если не найден Telegram API, используем тестовый ID или получаем из localStorage
+      const userInfo = localStorage.getItem('userInfo');
+      if (userInfo) {
+        const parsedInfo = JSON.parse(userInfo);
+        telegramId.value = parsedInfo.tgId;
+      } else {
+        // Тестовый ID для разработки
+        telegramId.value = 12345678;
+        alert(`Используется тестовый Telegram ID: ${telegramId.value}`);
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка при получении данных из Telegram WebApp:', error);
+    alert('Не удалось получить ваш Telegram ID. Пожалуйста, перезагрузите страницу.');
+  }
+}
 
 const selectedServer = ref(null);
 const subscriptionPeriods = ref([
@@ -235,24 +278,7 @@ const promoCode = ref('');
 const promoCodeApplied = ref(false);
 const promoDiscount = ref(0);
 
-function onServerSelect(server) {
-  selectedServer.value = server;
-}
-
-function nextStep() {
-  activeStep.value++;
-}
-
-function prevStep() {
-  activeStep.value--;
-}
-
-function pay() {
-  // Здесь логика оплаты
-  alert('Оплата!');
-}
-
-function calculateTotalPrice() {
+const calculateTotalPrice = () => {
   let periodPrice = 0;
   let devicePrice = 0;
 
@@ -270,30 +296,82 @@ function calculateTotalPrice() {
   return promoCodeApplied.value ? totalBeforeDiscount - promoDiscount.value : totalBeforeDiscount;
 }
 
-function applyPromoCode() {
-  // Здесь может быть логика проверки промокода через API
-  if (promoCode.value) {
-    // Пример проверки промокода (в реальном приложении должна быть проверка на сервере)
-    if (promoCode.value.toUpperCase() === 'СКИДКА20') {
-      promoDiscount.value = Math.round(calculateTotalPrice() * 0.2); // 20% скидка
-      promoCodeApplied.value = true;
-      return true;
-    } else if (promoCode.value.toUpperCase() === 'VPN500') {
-      promoDiscount.value = 500; // Фиксированная скидка 500 рублей
-      promoCodeApplied.value = true;
-      return true;
-    } else {
-      promoCodeApplied.value = false;
-      promoDiscount.value = 0;
-      alert('Введенный промокод недействителен');
-      return false;
-    }
+function onServerSelect(server) {
+  selectedServer.value = server;
+}
+
+function nextStep() {
+  activeStep.value++;
+}
+
+function prevStep() {
+  activeStep.value--;
+}
+
+function pay() {
+  // Проверяем наличие telegramId
+  if (!telegramId.value) {
+    alert('Ошибка авторизации: Telegram ID не найден');
+    return;
   }
-  return false;
+
+  // Проверяем наличие выбранного сервера с подробной диагностикой
+  if (!selectedServer.value) {
+    alert('Не выбран сервер');
+    return;
+  }
+
+  // Выводим в консоль содержимое объекта сервера для отладки
+  console.log('Выбранный сервер:', selectedServer.value);
+
+  // Получаем countryId или id из выбранного сервера
+  // Проверяем оба свойства, так как структура объекта сервера может отличаться
+  const countryId = selectedServer.value.countryId || selectedServer.value.id;
+
+  if (!countryId) {
+    // Выводим полную информацию о сервере для диагностики
+    console.error('Ошибка: Не найден countryId в объекте сервера:', selectedServer.value);
+    alert(`Не найден идентификатор сервера в выбранном сервере: ${selectedServer.value.nameRu || 'Неизвестный'}`);
+    return;
+  }
+
+  // Определяем количество месяцев на основе выбранного периода
+  let months = 1;
+  switch (selectedPeriod.value) {
+    case '1m': months = 1; break;
+    case '6m': months = 6; break;
+    case '12m': months = 12; break;
+  }
+
+  // Используем количество устройств как configsCount
+  const configsCount = selectedDeviceCount.value;
+
+  // Выводим информацию об отправляемых параметрах для проверки
+  console.log('Параметры запроса:', {
+    countryId,
+    months,
+    configsCount,
+    telegramId: telegramId.value
+  });
+
+  // Индикатор загрузки
+  const isLoading = ref(true);
+
+  // Отправляем запрос на бэкенд
+  vpnApi.createVpnConfigs({ countryId, months, configsCount, telegramId: telegramId.value })
+      .then(response => {
+        // Теперь сервер возвращает JSON с URL
+        if (response.status === "success" && response.paymentUrl) {
+          // Переходим на страницу оплаты в этой же вкладке
+          window.location.href = response.paymentUrl;
+        } else {
+          alert(`Ошибка: ${response.message || 'Не удалось получить URL для оплаты'}`);
+        }
+      })
+      .catch(error => {
+        console.error('Ошибка при создании VPN конфигурации:', error);
+        alert(`Ошибка при создании VPN конфигурации: ${error.response?.data?.message || error.message}`);
+      });
 }
 </script>
-
-<style scoped>
-</style>
-
 

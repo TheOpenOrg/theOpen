@@ -22,7 +22,7 @@ public class ConfigDto {
         return new ConfigDto(
             config.getId(),
             config.getServer().getId(),
-            config.getUser().getId(),
+            config.getUser().getTgId(),
             config.getMonthAmount(),
             config.getBuyTime(),
             config.getIsActive()

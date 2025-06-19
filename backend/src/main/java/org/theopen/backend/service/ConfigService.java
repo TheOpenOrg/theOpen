@@ -29,13 +29,13 @@ public class ConfigService {
     private final ServerRepository serverRepository;
 
     public List<ConfigDto> getConfigsForUser(Long tgId) {
-        return configRepository.findAllByUser_Id(tgId).stream()
+        return configRepository.findAllByUser_TgId(tgId).stream()
                 .map(ConfigDto::fromEntity)
                 .toList();
     }
 
     public ConfigDto createConfig(BuyConfigRequest request) {
-        User user = userRepository.findByTgId(request.getTgId())
+        User user = userRepository.findById(request.getTgId())
                 .orElseThrow(UserNotFoundException::new);
         Server server = serverRepository.findById(request.getServerId())
                 .orElseThrow(ServerNotFoundException::new);
@@ -61,10 +61,10 @@ public class ConfigService {
     }
 
     public ConfigDto getTrialConfig(Long tgId) {
-        User user = userRepository.findByTgId(tgId)
+        User user = userRepository.findById(tgId)
                 .orElseThrow(UserNotFoundException::new);
 
-        boolean alreadyTried = configRepository.existsByUser_IdAndMonthAmount(user.getId(), 0);
+        boolean alreadyTried = configRepository.existsByUser_TgIdAndMonthAmount(user.getTgId(), 0);
         if (alreadyTried) throw new TrialAlreadyUsedException();
 
         Server random = serverService.findRandom().orElseThrow();

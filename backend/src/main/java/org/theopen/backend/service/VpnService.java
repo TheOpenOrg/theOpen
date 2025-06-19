@@ -278,7 +278,7 @@ public class VpnService {
 
             for (int i = 0; i < request.getConfigsCount(); i++) {
                 String clientName = generateClientName(request.getCountryId(), i);
-                VpnConfigResponseDto result = createClientConfigOnServer(clientName, leastLoadedServer, request.getMonths(), payment);
+                VpnConfigResponseDto result = createClientConfigOnServer(clientName, leastLoadedServer, request.getMonths(), payment, request.getTelegramId());
                 if (!"success".equals(result.getStatus())) {
                     throw new VpnConfigException("Не удалось создать конфигурацию " + (i + 1) + " из " + request.getConfigsCount());
                 }
@@ -389,7 +389,7 @@ public class VpnService {
      * @param payment     платеж
      * @return результат операции
      */
-    private VpnConfigResponseDto createClientConfigOnServer(String clientName, Server server, Integer monthAmount, Optional<Payment> payment) {
+    private VpnConfigResponseDto createClientConfigOnServer(String clientName, Server server, Integer monthAmount, Optional<Payment> payment, Long telegramId) {
         //TODO проверь если у пользователя уже была триал версия, то не давать создавать новую
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + server.getApiToken());

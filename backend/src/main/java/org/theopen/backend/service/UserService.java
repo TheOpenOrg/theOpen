@@ -14,7 +14,7 @@ public class UserService {
     private final UserRepository userRepository;
 
     public UserDto registerOrFetch(TelegramAuthRequest request) {
-        return userRepository.findByTgId(request.getId())
+        return userRepository.findById(request.getId())
                 .map(UserDto::fromEntity)
                 .orElseGet(() -> {
                     User user = new User();
@@ -25,7 +25,7 @@ public class UserService {
     }
 
     public UserDto findByTelegramId(Long tgId) {
-        return userRepository.findByTgId(tgId)
+        return userRepository.findById(tgId)
                 .map(UserDto::fromEntity)
                 .orElseThrow(org.theopen.backend.exception.UserNotFoundException::new);
     }

@@ -8,10 +8,8 @@ import lombok.Data;
 @Data
 public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    @Column
-    private String name;
     @Column(name = "tg_id")
     private Long tgId;
+    @Column
+    private String name;
 }
