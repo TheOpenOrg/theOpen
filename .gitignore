@@ -6,3 +6,6 @@ frontend/firebase
 firebase/
 .idea
 configs
+**/.env
+..bfg-report
+docker-compose.yml

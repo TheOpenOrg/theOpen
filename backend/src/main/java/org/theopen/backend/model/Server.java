@@ -1,5 +1,6 @@
 package org.theopen.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -21,9 +22,10 @@ public class Server {
     @JoinColumn(name = "country_id")
     private Country countryEntity;
 
+    @JsonIgnore
     @Column(name = "api_token")
     private String apiToken;
-
+    @JsonIgnore
     @Column(name = "api_url")
     private String apiUrl;
 }

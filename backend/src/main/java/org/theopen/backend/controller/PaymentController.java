@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.theopen.backend.service.PaymentService;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -28,7 +29,7 @@ public class PaymentController {
     }
 
     @GetMapping("/status/{configId}")
-    public ResponseEntity<String> getPaymentStatus(@PathVariable Long configId) {
+    public ResponseEntity<String> getPaymentStatus(@PathVariable UUID configId) {
         String status = paymentService.getPaymentStatus(configId);
         return ResponseEntity.ok(status);
     }

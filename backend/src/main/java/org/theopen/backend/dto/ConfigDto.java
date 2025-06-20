@@ -6,12 +6,13 @@ import lombok.NoArgsConstructor;
 import org.theopen.backend.model.Config;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class ConfigDto {
-    private Long id;
+    private UUID id;
     private Long serverId;
     private Long uid;
     private int monthAmount;
@@ -29,3 +30,4 @@ public class ConfigDto {
         );
     }
 }
+

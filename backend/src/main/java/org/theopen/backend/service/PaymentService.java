@@ -133,7 +133,7 @@ public class PaymentService {
         }
     }
 
-    public String getPaymentStatus(Long configId) {
+    public String getPaymentStatus(UUID configId) {
         Config config = configRepository.findById(configId).orElse(null);
         if (config == null || config.getPayment() == null) return "unknown";
         Payment payment = config.getPayment();

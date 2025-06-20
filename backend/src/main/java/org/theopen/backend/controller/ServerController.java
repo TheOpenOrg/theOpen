@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.theopen.backend.dto.ServerDto;
+import org.theopen.backend.model.Server;
 import org.theopen.backend.service.ServerService;
 
 import java.util.List;
@@ -25,8 +26,8 @@ public class ServerController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ServerDto> getServerById(@PathVariable Long id) {
-        ServerDto server = serverService.getServerById(id);
+    public ResponseEntity<Server> getServerById(@PathVariable Long id) {
+        Server server = serverService.getServerById(id);
         return ResponseEntity.ok(server);
     }
 

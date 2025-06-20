@@ -1,7 +1,10 @@
 package org.theopen.backend.dto;
 
-import lombok.Data;
+import lombok.*;
 
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Data
 public class TelegramAuthRequest {
     private Long id;

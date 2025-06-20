@@ -27,14 +27,16 @@ public class VpnController {
     /**
      * Получает конфигурационный файл OpenVPN для указанного клиента
      *
-     * @param clientName имя клиента
+     * @param configId id конфигурации OpenVPN
+     * @param telegramId id пользователя в Telegram
      * @return объект с результатом операции или файл конфигурации
      */
-    @GetMapping("/config/{clientName}")
-    public ResponseEntity<?> getClientConfig(@PathVariable String clientName,
-                                            @RequestParam(required = false, defaultValue = "false") boolean download) {
-        log.info("Getting VPN config for client: {}", clientName);
-        VpnConfigResponseDto response = vpnService.getClientConfig(clientName);
+    @GetMapping("/config/{configId}")
+    public ResponseEntity<?> getClientConfig(@PathVariable UUID configId,
+                                             @RequestParam Long telegramId,
+                                             @RequestParam(required = false, defaultValue = "false") boolean download) {
+        log.info("Getting VPN config for config: {}", configId);
+        VpnConfigResponseDto response = vpnService.getClientConfig(configId, telegramId);
 
         if ("success".equals(response.getStatus()) && download && response.getConfigFile() != null) {
             HttpHeaders headers = new HttpHeaders();
@@ -53,49 +55,10 @@ public class VpnController {
     }
 
     /**
-     * Блокирует клиента OpenVPN
-     *
-     * @param clientName имя клиента
-     * @return объект с результатом операции
-     */
-    @PostMapping("/block/{clientName}")
-    public ResponseEntity<VpnConfigResponseDto> blockClient(@PathVariable String clientName) {
-        log.info("Blocking VPN client: {}", clientName);
-        VpnConfigResponseDto response = vpnService.blockClient(clientName);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Разблокирует клиента OpenVPN
-     *
-     * @param clientName имя клиента
-     * @return объект с результатом операции
-     */
-    @DeleteMapping("/block/{clientName}")
-    public ResponseEntity<VpnConfigResponseDto> unblockClient(@PathVariable String clientName) {
-        log.info("Unblocking VPN client: {}", clientName);
-        VpnConfigResponseDto response = vpnService.unblockClient(clientName);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Создает новую конфигурацию OpenVPN для клиента
-     *
-     * @param clientName имя клиента
-     * @return объект с результатом операции
-     */
-    @PostMapping("/config/{clientName}")
-    public ResponseEntity<VpnConfigResponseDto> createClientConfig(@PathVariable String clientName) {
-        log.info("Creating VPN config for client: {}", clientName);
-        VpnConfigResponseDto response = vpnService.createClientConfig(clientName);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
      * Создает несколько новых конфигураций OpenVPN на оптимальном сервере выбранной страны
      *
-     * @param countryId идентификатор страны
-     * @param months количество месяцев
+     * @param countryId    идентификатор страны
+     * @param months       количество месяцев
      * @param configsCount количество конфигураций
      * @return список с результатами операций создания конфигураций
      */
@@ -133,15 +96,4 @@ public class VpnController {
         }
     }
 
-    /**
-     * Получает количество активных пользователей OpenVPN
-     *
-     * @return объект с результатом операции
-     */
-    @GetMapping("/active-users")
-    public ResponseEntity<VpnConfigResponseDto> getActiveUsers() {
-        log.info("Getting active VPN users count");
-        VpnConfigResponseDto response = vpnService.getActiveUsers();
-        return ResponseEntity.ok(response);
-    }
 }

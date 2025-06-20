@@ -18,6 +18,7 @@ import org.theopen.backend.repo.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,11 @@ public class ConfigService {
         return configRepository.findAllByUser_TgId(tgId).stream()
                 .map(ConfigDto::fromEntity)
                 .toList();
+    }
+
+    public Config getConfigById(UUID configId) {
+        return configRepository.findById(configId)
+                .orElseThrow(ConfigNotFoundException::new);
     }
 
     public ConfigDto createConfig(BuyConfigRequest request) {
@@ -51,7 +57,7 @@ public class ConfigService {
         return ConfigDto.fromEntity(saved);
     }
 
-    public ConfigDto renewConfig(Long id, int months) {
+    public ConfigDto renewConfig(UUID id, int months) {
         Config config = configRepository.findById(id)
                 .orElseThrow(ConfigNotFoundException::new);
         if (!config.getIsActive()) throw new InactiveConfigException();
@@ -79,7 +85,7 @@ public class ConfigService {
         return ConfigDto.fromEntity(configRepository.save(config));
     }
 
-    public void deactivateConfig(Long id) {
+    public void deactivateConfig(UUID id) {
         Config config = configRepository.findById(id)
                 .orElseThrow(ConfigNotFoundException::new);
         config.setIsActive(false);

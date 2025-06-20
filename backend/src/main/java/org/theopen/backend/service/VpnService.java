@@ -15,6 +15,7 @@ import org.theopen.backend.exception.VpnConfigException;
 import org.theopen.backend.model.Config;
 import org.theopen.backend.model.Payment;
 import org.theopen.backend.model.Server;
+import org.theopen.backend.model.User;
 import org.theopen.backend.repo.ConfigRepository;
 import org.theopen.backend.repo.ServerRepository;
 
@@ -35,27 +36,77 @@ public class VpnService {
     private final ServerRepository serverRepository;
     private final ConfigRepository configRepository;
     private final PaymentService paymentService;
-
-    @Value("${vpn.server.url}")
-    private String vpnServerUrl;
-
-    @Value("${vpn.server.token}")
-    private String vpnServerToken;
+    private final ServerService serverService;
+    private final ConfigService configService;
+    private final UserService userService;
 
     @Value("${vpn.configs.storage.path}")
     private String configsStoragePath;
 
     /**
      * Получает конфигурационный файл OpenVPN для указанного клиента
+     * с расширенными проверками безопасности
      *
-     * @param clientName имя клиента
+     * @param configId номер конфигурации
+     * @param tgId идентификатор пользователя Telegram
      * @return объект с результатом операции и возможный конфигурационный файл
      */
-    public VpnConfigResponseDto getClientConfig(String clientName) {
-        HttpHeaders headers = createAuthHeaders();
+    public VpnConfigResponseDto getClientConfig(UUID configId, Long tgId) {
+        // Проверяем, что ID конфигурации не нулевой
+        if (configId == null ) {
+            throw new VpnConfigException("Некорректный ID конфигурации");
+        }
+
+        // Проверяем, что Telegram ID не нулевой
+        if (tgId == null || tgId <= 0) {
+            throw new VpnConfigException("Некорректный идентификатор пользователя");
+        }
+
+        // Получаем конфигурацию из базы данных
+        Config config = configService.getConfigById(configId);
+
+        // Проверяем, что конфигурация существует
+        if (config == null) {
+            log.warn("Попытка доступа к несуществующей конфигурации с ID: {}", configId);
+            throw new VpnConfigException("Конфигурация не найдена");
+        }
+
+        // Проверяем, что у конфигурации есть вл��делец
+        if (config.getUser() == null) {
+            log.warn("Попытка доступа к конфигурации без владельца с ID: {}", configId);
+            throw new VpnConfigException("Ошибка идентификации владельца конфигурации");
+        }
+
+        // Проверяем, что пользователь является владельцем конфигурации
+        if (!Objects.equals(config.getUser().getTgId(), tgId)) {
+            log.warn("Попытка несанкционированного доступа к конфигурации {} пользователем с TG ID: {}", configId, tgId);
+            throw new VpnConfigException("У вас нет доступа к этой конфигурации");
+        }
+
+        // Проверяем, что конфигурация активна
+        if (config.getIsActive() == null || !config.getIsActive()) {
+            throw new VpnConfigException("Конфигурация неактивна или срок её действия истёк");
+        }
+
+        // Проверяем, что срок действия конфигурации не истек
+        if (config.getBuyTime() != null && config.getMonthAmount() != null) {
+            LocalDateTime expirationTime = config.getBuyTime().plusMonths(config.getMonthAmount());
+            if (LocalDateTime.now().isAfter(expirationTime)) {
+                log.info("Попытка доступа к просроченной конфигурации ID: {}", configId);
+                throw new VpnConfigException("Срок действия конфигурации истек");
+            }
+        }
+
+        // Проверяем, что сервер доступен
+        if (config.getServer() == null) {
+            throw new VpnConfigException("Ошибка получения информации о сервере ко��фигурации");
+        }
+
+        // Далее получаем конфигурацию с сервера
+        HttpHeaders headers = createAuthHeaders(config.getServer().getApiToken());
         headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
 
-        String url = vpnServerUrl + "/api/configs/" + clientName;
+        String url = config.getServer().getApiUrl() + "/api/configs/" + config.getName();
 
         ResponseEntity<byte[]> response = restTemplate.exchange(
                 url,
@@ -65,12 +116,12 @@ public class VpnService {
         );
 
         if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            String fileName = clientName + ".ovpn";
+            String fileName = config.getName() + ".ovpn";
             byte[] configData = response.getBody();
 
             // Сохраняем файл в хранилище
             try {
-                saveConfigToStorage(clientName, configData);
+                saveConfigToStorage(config.getName(), configData);
             } catch (IOException e) {
                 throw new VpnConfigException(e.getMessage());
             }
@@ -81,7 +132,7 @@ public class VpnService {
                     .fileName(fileName)
                     .build();
         } else {
-            throw new VpnConfigException("Не удалось получить конфигурацию клиента " + clientName);
+            throw new VpnConfigException("Не удалось получить конфигурацию клиента " + config.getName());
         }
     }
 
@@ -91,10 +142,12 @@ public class VpnService {
      * @param clientName имя клиента
      * @return объект с результатом операции
      */
-    public VpnConfigResponseDto blockClient(String clientName) {
-        HttpHeaders headers = createAuthHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String url = vpnServerUrl + "/api/block/" + clientName;
+    public VpnConfigResponseDto blockClient(String clientName, Long serverId) {
+        Server server = serverService.getServerById(serverId);
+        HttpHeaders headers = createAuthHeaders(server.getApiToken());
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
+
+        String url = server.getApiUrl() + "/api/block/" + clientName;
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
                 HttpMethod.POST,
@@ -119,9 +172,13 @@ public class VpnService {
      * @param clientName имя клиента
      * @return объект с результатом операции
      */
-    public VpnConfigResponseDto unblockClient(String clientName) {
-        HttpHeaders headers = createAuthHeaders();
-        String url = vpnServerUrl + "/api/block/" + clientName;
+    public VpnConfigResponseDto unblockClient(String clientName, Long serverId) {
+        Server server = serverService.getServerById(serverId);
+        HttpHeaders headers = createAuthHeaders(server.getApiToken());
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
+
+
+        String url = server.getApiUrl() + "/api/block/" + clientName;
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
                 HttpMethod.DELETE,
@@ -140,42 +197,18 @@ public class VpnService {
         }
     }
 
-    /**
-     * Создает новую конфигурацию OpenVPN для клиента
-     *
-     * @param clientName имя клиента
-     * @return объект с результатом операции
-     */
-    public VpnConfigResponseDto createClientConfig(String clientName) {
-        HttpHeaders headers = createAuthHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        String url = vpnServerUrl + "/api/create/" + clientName;
-
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                new HttpEntity<>(headers),
-                new ParameterizedTypeReference<>() {
-                }
-        );
-
-        if (response.getStatusCode() == HttpStatus.OK) {
-            // После успешного создания, получаем конфигурационный файл
-            return getClientConfig(clientName);
-        } else {
-            throw new VpnConfigException("Не удалось создать конфигурацию клиента " + clientName);
-        }
-    }
 
     /**
      * Получает количество активных пользователей OpenVPN
      *
      * @return объект с результатом операции
      */
-    public VpnConfigResponseDto getActiveUsers() {
-        HttpHeaders headers = createAuthHeaders();
-        String url = vpnServerUrl + "/api/active-users";
+    public VpnConfigResponseDto getActiveUsers(Long serverId) {
+        Server server = serverService.getServerById(serverId);
+        HttpHeaders headers = createAuthHeaders(server.getApiToken());
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
+
+        String url = server.getApiUrl() + "/api/active-users";
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 url,
                 HttpMethod.GET,
@@ -200,7 +233,7 @@ public class VpnService {
      *
      * @return объект HttpHeaders с заголовками
      */
-    private HttpHeaders createAuthHeaders() {
+    private HttpHeaders createAuthHeaders(String vpnServerToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + vpnServerToken);
         return headers;
@@ -403,9 +436,10 @@ public class VpnService {
                 new ParameterizedTypeReference<>() {
                 }
         );
-
+        User user = userService.findByTelegramId(telegramId);
         if (response.getStatusCode() == HttpStatus.OK) {
             Config config = new Config();
+            config.setUser(user);
             config.setServer(server);
             config.setBuyTime(LocalDateTime.now());
             config.setIsActive(payment.isEmpty());
@@ -431,3 +465,4 @@ public class VpnService {
         return "client-" + countryId + "-" + timestamp + "-" + index;
     }
 }
+

@@ -23,9 +23,8 @@ public class ServerService {
                 .toList();
     }
 
-    public ServerDto getServerById(Long id) {
+    public Server getServerById(Long id) {
         return serverRepository.findById(id)
-                .map(ServerDto::fromEntity)
                 .orElseThrow(ServerNotFoundException::new);
     }
 

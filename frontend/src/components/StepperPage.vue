@@ -221,44 +221,185 @@ const option9 = ref(false);
 const option10 = ref(false);
 
 const telegramId = ref(null);
+const telegramInitData = ref(null);
 
-// Получаем telegramId из Telegram WebApp API
+// Инициализация и получение данных из Telegram WebApp
 onMounted(async () => {
-  await fetchTelegramProfile();
+  await fetchTelegramData();
+
+  // Получаем и обрабатываем параметр user из URL
+  parseUserParamFromUrl();
 });
 
-function fetchTelegramProfile() {
+function fetchTelegramData() {
   try {
     // Проверяем наличие Telegram WebApp API
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-      const tg_user = window.Telegram.WebApp.initDataUnsafe.user;
-      telegramId.value = tg_user.id;
+    if (window.Telegram && window.Telegram.WebApp) {
+      // Получаем и сохраняем полный объект initData
+      telegramInitData.value = window.Telegram.WebApp.initData;
 
-      // Показываем Telegram ID через alert
-      alert(`Telegram ID: ${tg_user.id}\nИмя: ${tg_user.first_name || 'Не указано'}`);
+      // Выводим данные через alert для проверки
+      alert(`Telegram WebApp initData: ${telegramInitData.value}`);
+      console.log('Telegram WebApp initData:', telegramInitData.value);
 
-      // Сохраняем информацию в localStorage для дальнейшего использования
-      localStorage.setItem('userInfo', JSON.stringify({
-        tgId: tg_user.id,
-        name: tg_user.first_name
-      }));
+      // Если есть данные пользователя, также сохраняем их
+      if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+        const tg_user = window.Telegram.WebApp.initDataUnsafe.user;
+        telegramId.value = tg_user.id;
+
+        // Также выводим информацию о пользователе
+        alert(`Telegram ID: ${tg_user.id}\nИмя: ${tg_user.first_name || 'Не указано'}`);
+
+        // Сохраняем информацию в localStorage для дальнейшего использования
+        localStorage.setItem('userInfo', JSON.stringify({
+          tgId: tg_user.id,
+          name: tg_user.first_name,
+          initData: telegramInitData.value
+        }));
+      } else {
+        console.warn('Данные пользователя Telegram не доступны');
+      }
     } else {
-      console.warn('Telegram WebApp API не доступен. Использую тестовый ID.');
-      // Если не найден Telegram API, используем тестовый ID или получаем из localStorage
+      console.warn('Telegram WebApp API не доступен. Используем тестовый режим.');
+
+      // Если не найден Telegram API, используем тестовый ID
       const userInfo = localStorage.getItem('userInfo');
       if (userInfo) {
         const parsedInfo = JSON.parse(userInfo);
         telegramId.value = parsedInfo.tgId;
+        telegramInitData.value = parsedInfo.initData;
+
+        alert(`Используются сохраненные данные из localStorage:\nTelegram ID: ${telegramId.value}\nInitData: ${telegramInitData.value}`);
       } else {
         // Тестовый ID для разработки
         telegramId.value = 12345678;
-        alert(`Используется тестовый Telegram ID: ${telegramId.value}`);
+        alert(`Используется тестовый Telegram ID: ${telegramId.value}\nInitData отсутствует`);
       }
     }
+
+    // Можно также отправить данные на сервер для верификации
+    if (telegramInitData.value) {
+      sendInitDataToServer(telegramInitData.value);
+    }
+
   } catch (error) {
     console.error('Ошибка при получении данных из Telegram WebApp:', error);
-    alert('Не удалось получить ваш Telegram ID. Пожалуйста, перезагрузите страницу.');
+    alert(`Ошибка при получении данных из Telegram WebApp: ${error.message}`);
   }
+}
+
+// Функция для получения, декодирования и отправки параметра user из URL
+function parseUserParamFromUrl() {
+  try {
+    // Получаем текущий URL
+    const url = new URL(window.location.href);
+    const searchParams = url.searchParams;
+
+    // Инициализируем объект для сбора всех параметров
+    const telegramAuthData = {};
+
+    // Получаем параметр user из URL
+    const userParam = searchParams.get('user');
+
+    if (userParam) {
+      // Декодируем параметр
+      const decodedUser = decodeURIComponent(userParam);
+      console.log('Декодированный параметр user:', decodedUser);
+
+      // Преобразуем строку в объект
+      const userObject = JSON.parse(decodedUser);
+      console.log('Объект пользователя после JSON.parse:', userObject);
+
+      // Добавляем объект пользователя в данные для валидации
+      telegramAuthData.user = userObject;
+
+      // Если объект содержит идентификатор пользователя, сохраняем его
+      if (userObject.id) {
+        telegramId.value = userObject.id;
+      }
+    } else {
+      console.log('Параметр user не найден в URL');
+      return; // Выходим, если нет главного параметра
+    }
+
+    // Получаем остальные параметры для валидации
+    const requiredParams = [
+      'auth_date',
+      'hash',
+      'signature',
+      'chat_instance',
+      'chat_type'
+    ];
+
+    // Получаем все остальные параметры из URL
+    requiredParams.forEach(param => {
+      const value = searchParams.get(param);
+      if (value) {
+        telegramAuthData[param] = value;
+      }
+    });
+
+    // Проверяем наличие минимально необходимых параметров (user, auth_date и hash)
+    if (!telegramAuthData.auth_date || !telegramAuthData.hash) {
+      console.warn('Не найдены обязательные параметры auth_date или hash в URL');
+      return;
+    }
+
+    // Проверяем актуальность данных (не более 24 часов)
+    const authTimestamp = parseInt(telegramAuthData.auth_date, 10);
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    if (currentTimestamp - authTimestamp > 86400) {
+      console.warn('Данные авторизации Telegram устарели (более 24 часов)');
+      alert('Данные авторизации устарели, пожалуйста, авторизуйтесь заново');
+      return;
+    }
+
+    console.log('Собранные данные авторизации Telegram:', telegramAuthData);
+
+    // Добавляем текущую временную метку
+    telegramAuthData.timestamp = new Date().toISOString();
+
+    // Отправляем данные на сервер для проверки
+    sendUserDataToServer(telegramAuthData);
+
+  } catch (error) {
+    console.error('Ошибка при обработке параметров Telegram из URL:', error);
+    alert(`Ошибка при обработке данных авторизации: ${error.message}`);
+  }
+}
+
+// Функция для отправки данных пользователя на сервер
+function sendUserDataToServer(userData) {
+  console.log('Отправка данных пользователя на сервер...');
+
+  // Создаем объект с данными для отправки
+  // Вы можете выбрать нужные поля из userData или отправить весь объект
+  const dataToSend = {
+    user: userData,
+    timestamp: new Date().toISOString()
+  };
+
+  // Отправляем данные на сервер
+  vpnApi.validateTelegramAuthFormUrlencoded(dataToSend)
+    .then(response => {
+      console.log('Данные успешно отправлены на сервер:', response);
+      // Здесь можно обработать ответ от сервера
+    })
+    .catch(error => {
+      console.error('Ошибка при отправке данных на сервер:', error);
+      // Здесь можно обработать ошибку
+    });
+}
+
+// Функция для отправки initData на сервер (для верификации)
+function sendInitDataToServer(initData) {
+  console.log('Отправка initData на сервер для верификации...');
+  // Здесь можно добавить код для отправки initData на сервер
+  // например, через API:
+  // vpnApi.verifyTelegramData({ initData })
+  //   .then(response => console.log('Верификация успешна:', response))
+  //   .catch(error => console.error('Ошибка верификации:', error));
 }
 
 const selectedServer = ref(null);
@@ -317,7 +458,7 @@ function pay() {
 
   // Проверяем наличие выбранного сервера с подробной диагностикой
   if (!selectedServer.value) {
-    alert('Не выбран сервер');
+    alert('Не ��ыбран сервер');
     return;
   }
 
