@@ -279,7 +279,15 @@ function fetchTelegramData() {
 
     // Можно также отправить данные на сервер для верификации
     if (telegramInitData.value) {
-      sendInitDataToServer(telegramInitData.value);
+      vpnApi.validateTelegramAuthFormUrlencoded(telegramInitData.value)
+          .then(response => {
+            console.log('Данные успешно отправлены на сервер:', response);
+            // Здесь можно обработать ответ от сервера
+          })
+          .catch(error => {
+            console.error('Ошибка при отправке данных на сервер:', error);
+            // Здесь можно обработать ошибку
+          });
     }
 
   } catch (error) {

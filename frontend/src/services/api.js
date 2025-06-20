@@ -114,12 +114,10 @@ export const vpnApi = {
 
   // Отправка данных для валидации через form-urlencoded
   validateTelegramAuthFormUrlencoded: (initData) => {
-    return fetch('/auth/telegram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        initData: initData
-      })
+    return api.post('/api/user/auth', new URLSearchParams({
+      initData: initData
+    }), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
   }
 };

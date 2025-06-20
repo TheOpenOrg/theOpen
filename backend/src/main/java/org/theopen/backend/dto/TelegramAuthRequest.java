@@ -11,6 +11,7 @@ public class TelegramAuthRequest {
     private String first_name;
     private String last_name;
     private String username;
-    private Long auth_date;
-    private String hash;
+    private Boolean allows_write_to_pm;
+    private String photo_url;
+    private String language_code;
 }

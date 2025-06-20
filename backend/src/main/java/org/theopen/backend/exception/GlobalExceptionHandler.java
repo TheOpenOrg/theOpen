@@ -69,7 +69,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(TelegramAuthException.class)
-    public ResponseEntity<VpnConfigResponseDto> handleAuthException(VpnConfigException e) {
+    public ResponseEntity<VpnConfigResponseDto> handleAuthException(TelegramAuthException e) {
         log.error("Auth Error: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(VpnConfigResponseDto.builder()

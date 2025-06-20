@@ -1,5 +1,7 @@
 package org.theopen.backend.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,15 +25,13 @@ public class UserController {
 
 
     @PostMapping("/auth")
-    public ResponseEntity<UserDto> authUser(@RequestParam String initData) {
+    public ResponseEntity<UserDto> authUser(@RequestParam String initData) throws JsonProcessingException {
         log.info(">> Получено initData: {}", initData);
         Map<String, String> userData = validator.parseAndValidateInitData(initData);
         log.info(">> Распакованные данные пользователя: {}", userData);
-        TelegramAuthRequest payload = TelegramAuthRequest.builder()
-                .id(Long.valueOf(userData.get("id")))
-                .first_name(userData.get("first_name"))
-                .build();
-        return ResponseEntity.ok(userService.registerOrFetch(payload));
+        String userJson = userData.get("user");
+        TelegramAuthRequest authRequest = new ObjectMapper().readValue(userJson, TelegramAuthRequest.class);
+        return ResponseEntity.ok(userService.registerOrFetch(authRequest));
     }
 
     @GetMapping("/me")
