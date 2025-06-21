@@ -3,6 +3,7 @@ package org.theopen.backend.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.client.HttpServerErrorException;
@@ -27,7 +28,8 @@ public class GlobalExceptionHandler {
                     userMessage = responseBody.substring(idx + 2, endIdx);
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(VpnConfigResponseDto.builder()
                         .status("error")
@@ -59,33 +61,26 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(VpnConfigException.class)
-    public ResponseEntity<VpnConfigResponseDto> handleVpnConfigException(VpnConfigException e) {
+    public ResponseEntity<ErrorResponseDto> handleVpnConfigException(VpnConfigException e) {
         log.error("VPN Configuration Error: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error(e.getMessage())
-                        .build());
+                .body(new ErrorResponseDto(e.getMessage()));
     }
 
-    @ExceptionHandler(TelegramAuthException.class)
-    public ResponseEntity<VpnConfigResponseDto> handleAuthException(TelegramAuthException e) {
+    @ExceptionHandler({TelegramAuthException.class,
+            AuthorizationDeniedException.class
+    })
+    public ResponseEntity<ErrorResponseDto> handleAuthException(RuntimeException e) {
         log.error("Auth Error: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error(e.getMessage())
-                        .build());
+                .body(new ErrorResponseDto(e.getMessage()));
     }
 
     @ExceptionHandler(ServerApiException.class)
-    public ResponseEntity<VpnConfigResponseDto> handleServerApiException(ServerApiException e) {
+    public ResponseEntity<ErrorResponseDto> handleServerApiException(ServerApiException e) {
         log.error("Server API Error: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(VpnConfigResponseDto.builder()
-                        .status("error")
-                        .error("Ошибка взаимодействия с VPN-сервером. Попробуйте позже.")
-                        .build());
+                .body(new ErrorResponseDto("Ошибка взаимодействия с VPN-сервером. Попробуйте позже."));
     }
 
     @ExceptionHandler(UserNotFoundException.class)

@@ -6,6 +6,8 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.theopen.backend.dto.ConfigsRequestDto;
 import org.theopen.backend.dto.VpnConfigResponseDto;
@@ -28,14 +30,18 @@ public class VpnController {
      * Получает конфигурационный файл OpenVPN для указанного клиента
      *
      * @param configId id конфигурации OpenVPN
-     * @param telegramId id пользователя в Telegram
+     * @param download флаг для скачивания файла
+     * @param userDetails данные аутентифицированного пользователя
      * @return объект с результатом операции или файл конфигурации
      */
     @GetMapping("/config/{configId}")
     public ResponseEntity<?> getClientConfig(@PathVariable UUID configId,
-                                             @RequestParam Long telegramId,
-                                             @RequestParam(required = false, defaultValue = "false") boolean download) {
-        log.info("Getting VPN config for config: {}", configId);
+                                             @RequestParam(required = false, defaultValue = "false") boolean download,
+                                             @AuthenticationPrincipal UserDetails userDetails) {
+        // Получаем telegramId из данных пользователя (username содержит telegramId согласно CustomUserDetailsService)
+        Long telegramId = Long.parseLong(userDetails.getUsername());
+        log.info("Getting VPN config for config: {} for user: {}", configId, telegramId);
+
         VpnConfigResponseDto response = vpnService.getClientConfig(configId, telegramId);
 
         if ("success".equals(response.getStatus()) && download && response.getConfigFile() != null) {
@@ -67,8 +73,9 @@ public class VpnController {
             @RequestParam Long countryId,
             @RequestParam Integer months,
             @RequestParam Integer configsCount,
-            @RequestParam Long telegramId
-    ) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // Получаем telegramId из данных пользователя (username содержит telegramId согласно CustomUserDetailsService)
+        Long telegramId = Long.parseLong(userDetails.getUsername());
         log.info("Creating multiple VPN configs: {} for country ID: {} for {} months", configsCount, countryId, months);
         ConfigsRequestDto request = new ConfigsRequestDto();
         request.setCountryId(countryId);

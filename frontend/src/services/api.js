@@ -61,57 +61,6 @@ export const vpnApi = {
     });
   },
 
-  // Проверить данные авторизации Telegram
-  verifyUserData: (data) => {
-    // Создаем базовый объект с датой запроса
-    const telegramAuthData = {
-      timestamp: new Date().toISOString(),
-    };
-
-    // Добавляем только существующие поля из данных авторизации
-    const fieldsToInclude = [
-      'user', 'auth_date', 'hash', 'chat_instance',
-      'chat_type', 'signature', 'query_id', 'start_param'
-    ];
-
-    fieldsToInclude.forEach(field => {
-      if (data[field] !== undefined && data[field] !== null) {
-        telegramAuthData[field] = data[field];
-      }
-    });
-
-    // Добавляем информацию о клиенте для дополнительной безопасности
-    if (!telegramAuthData.clientInfo) {
-      telegramAuthData.clientInfo = {};
-    }
-
-    // Собираем только доступные данные об окружении клиента
-    if (navigator) {
-      if (navigator.userAgent) telegramAuthData.clientInfo.userAgent = navigator.userAgent;
-      if (navigator.language) telegramAuthData.clientInfo.language = navigator.language;
-      if (navigator.platform) telegramAuthData.clientInfo.platform = navigator.platform;
-    }
-
-    if (window && window.screen) {
-      telegramAuthData.clientInfo.screenResolution = `${window.screen.width}x${window.screen.height}`;
-    }
-
-    try {
-      telegramAuthData.clientInfo.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch (e) {
-      console.warn('Не удалось определить временную зону:', e);
-    }
-
-    // Проверяем наличие данных для журналирования и добавляем их при наличии
-    if (data.timestamp) {
-      telegramAuthData.originalTimestamp = data.timestamp;
-    }
-    console.log('Отправляемые данные для валидации:', telegramAuthData);
-
-    // Отправляем данные на сервер для валидации
-    return api.post('/api/user/auth', telegramAuthData);
-  },
-
   // Отправка данных для валидации через form-urlencoded
   validateTelegramAuthFormUrlencoded: (initData) => {
     return api.post('/api/user/auth', new URLSearchParams({

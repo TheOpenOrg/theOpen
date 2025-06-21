@@ -3,19 +3,21 @@ package org.theopen.backend.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.theopen.backend.dto.BuyConfigRequest;
 import org.theopen.backend.dto.ConfigDto;
 import org.theopen.backend.service.ConfigService;
-import org.theopen.backend.service.UserService;
 import org.theopen.backend.exception.UserNotFoundException;
 import org.theopen.backend.dto.ErrorResponse;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 import org.springframework.http.CacheControl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,39 +28,26 @@ import org.slf4j.LoggerFactory;
 public class ConfigController {
 
     private final ConfigService configService;
-    private final UserService userService;
     private static final Logger log = LoggerFactory.getLogger(ConfigController.class);
 
+
     /**
-     * Получает список конфигураций пользователя
+     * Получает список конфигураций для текущего пользователя
      *
-     * @param tgId идентификатор пользователя из заголовка
-     * @param authToken токен авторизации
-     * @param request объект запроса дл�� получения IP-адреса
-     * @return список конфигураций пользователя
+     * @param userDetails данные аутентифицированного пользователя
+     * @return список конфигураций или ошибка
      */
     @GetMapping("/my")
     public ResponseEntity<?> getMyConfigs(
-            @RequestHeader(value = "X-Tg-Id", required = true) Long tgId,
-            @RequestHeader(value = "Authorization", required = false) String authToken,
-            HttpServletRequest request) {
-
-        // Проверяем, что ID не пустой и положительный
-        if (tgId == null || tgId <= 0) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // Получаем telegramId из данных пользователя (username содержит telegramId согласно CustomUserDetailsService)
+        Long tgId = Long.parseLong(userDetails.getUsername());
+        if (tgId <= 0) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ErrorResponse("Некорректный идентификатор пользователя"));
         }
 
         try {
-            // Проверяем авторизацию - это можно реализовать через Spring Security или вручную
-            if (!userService.validateUserAccess(tgId, authToken)) {
-                // Логируем попытку несанкционированного доступа
-                log.warn("Попытка несанкционированного доступа к конфигурациям. TG ID: {}, IP: {}",
-                        tgId, request.getRemoteAddr());
-
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ErrorResponse("Доступ запрещен"));
-            }
 
             // Логируем успешный запрос
             log.info("Запрос списка конфигураций пользователем с TG ID: {}", tgId);
