@@ -182,6 +182,7 @@
                 size="large"
                 class="w-full"
                 @click="pay()"
+                :loading="isCreatingConfig"
               />
             </div>
           </div>
@@ -195,332 +196,178 @@
 </template>
 
 <script setup>
-import {ref, onMounted} from 'vue';
+import { ref, onMounted } from 'vue';
 import Stepper from 'primevue/stepper';
+import Step from 'primevue/step';
+import StepList from 'primevue/steplist';
+import StepPanel from 'primevue/steppanel';
+import StepPanels from 'primevue/steppanels';
 import Button from 'primevue/button';
-import ServerList from './ServerList.vue';
+import Divider from 'primevue/divider';
 import InputText from 'primevue/inputtext';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
-import axios from 'axios';
-import { vpnApi } from '../services/api';
+import ServerList from './ServerList.vue';
+// import { Toast } from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import { vpnApi, serverApi } from '../services/api';
 
+const toast = useToast();
 const activeStep = ref(1);
-const name = ref();
-const email = ref();
-const password = ref();
-const option1 = ref(false);
-const option2 = ref(false);
-const option3 = ref(false);
-const option4 = ref(false);
-const option5 = ref(false);
-const option6 = ref(false);
-const option7 = ref(false);
-const option8 = ref(false);
-const option9 = ref(false);
-const option10 = ref(false);
-
-const telegramId = ref(null);
-const telegramInitData = ref(null);
-
-// Инициализация и получение данных из Telegram WebApp
-onMounted(async () => {
-  await fetchTelegramData();
-
-  // Получаем и обрабатываем параметр user из URL
-  parseUserParamFromUrl();
-});
-
-function fetchTelegramData() {
-  try {
-    // Проверяем наличие Telegram WebApp API
-    if (window.Telegram && window.Telegram.WebApp) {
-      // Получаем и сохраняем полный объект initData
-      telegramInitData.value = window.Telegram.WebApp.initData;
-
-      // Выводим данные через alert для проверки
-      alert(`Telegram WebApp initData: ${telegramInitData.value}`);
-      console.log('Telegram WebApp initData:', telegramInitData.value);
-
-      // Если есть данные пользователя, также сохраняем их
-      if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-        const tg_user = window.Telegram.WebApp.initDataUnsafe.user;
-        telegramId.value = tg_user.id;
-
-        // Также выводим информацию о пользователе
-        alert(`Telegram ID: ${tg_user.id}\nИмя: ${tg_user.first_name || 'Не указано'}`);
-
-        // Сохраняем информацию в localStorage для дальнейшего использования
-        localStorage.setItem('userInfo', JSON.stringify({
-          tgId: tg_user.id,
-          name: tg_user.first_name,
-          initData: telegramInitData.value
-        }));
-      } else {
-        console.warn('Данные пользователя Telegram не доступны');
-      }
-    } else {
-      console.warn('Telegram WebApp API не доступен. Используем тестовый режим.');
-
-      // Если не найден Telegram API, используем тестовый ID
-      const userInfo = localStorage.getItem('userInfo');
-      if (userInfo) {
-        const parsedInfo = JSON.parse(userInfo);
-        telegramId.value = parsedInfo.tgId;
-        telegramInitData.value = parsedInfo.initData;
-
-        alert(`Используются сохраненные данные из localStorage:\nTelegram ID: ${telegramId.value}\nInitData: ${telegramInitData.value}`);
-      } else {
-        // Тестовый ID для разработки
-        telegramId.value = 12345678;
-        alert(`Используется тестовый Telegram ID: ${telegramId.value}\nInitData отсутствует`);
-      }
-    }
-
-    // Можно также отправить данные на сервер для верификации
-    if (telegramInitData.value) {
-      vpnApi.validateTelegramAuthFormUrlencoded(telegramInitData.value)
-          .then(response => {
-            console.log('Данные успешно отправлены на сервер:', response);
-            // Здесь можно обработать ответ от сервера
-          })
-          .catch(error => {
-            console.error('Ошибка при отправке данных на сервер:', error);
-            // Здесь можно обработать ошибку
-          });
-    }
-
-  } catch (error) {
-    console.error('Ошибка при получении данных из Telegram WebApp:', error);
-    alert(`Ошибка при получении данных из Telegram WebApp: ${error.message}`);
-  }
-}
-
-// Функция для получения, декодирования и отправки параметра user из URL
-function parseUserParamFromUrl() {
-  try {
-    // Получаем текущий URL
-    const url = new URL(window.location.href);
-    const searchParams = url.searchParams;
-
-    // Инициализируем объект для сбора всех параметров
-    const telegramAuthData = {};
-
-    // Получаем параметр user из URL
-    const userParam = searchParams.get('user');
-
-    if (userParam) {
-      // Декодируем параметр
-      const decodedUser = decodeURIComponent(userParam);
-      console.log('Декодированный параметр user:', decodedUser);
-
-      // Преобразуем строку в объект
-      const userObject = JSON.parse(decodedUser);
-      console.log('Объект пользователя после JSON.parse:', userObject);
-
-      // Добавляем объект пользователя в данные для валидации
-      telegramAuthData.user = userObject;
-
-      // Если объект содержит идентификатор пользователя, сохраняем его
-      if (userObject.id) {
-        telegramId.value = userObject.id;
-      }
-    } else {
-      console.log('Параметр user не найден в URL');
-      return; // Выходим, если нет главного параметра
-    }
-
-    // Получаем остальные параметры для валидации
-    const requiredParams = [
-      'auth_date',
-      'hash',
-      'signature',
-      'chat_instance',
-      'chat_type'
-    ];
-
-    // Получаем все остальные параметры из URL
-    requiredParams.forEach(param => {
-      const value = searchParams.get(param);
-      if (value) {
-        telegramAuthData[param] = value;
-      }
-    });
-
-    // Проверяем наличие минимально необходимых параметров (user, auth_date и hash)
-    if (!telegramAuthData.auth_date || !telegramAuthData.hash) {
-      console.warn('Не найдены обязательные параметры auth_date или hash в URL');
-      return;
-    }
-
-    // Проверяем актуальность данных (не более 24 часов)
-    const authTimestamp = parseInt(telegramAuthData.auth_date, 10);
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-
-    if (currentTimestamp - authTimestamp > 86400) {
-      console.warn('Данные авторизации Telegram устарели (более 24 часов)');
-      alert('Данные авторизации устарели, пожалуйста, авторизуйтесь заново');
-      return;
-    }
-
-    console.log('Собранные данные авторизации Telegram:', telegramAuthData);
-
-    // Добавляем текущую временную метку
-    telegramAuthData.timestamp = new Date().toISOString();
-
-    // Отправляем данные на сервер для проверки
-    sendUserDataToServer(telegramAuthData);
-
-  } catch (error) {
-    console.error('Ошибка при обработке параметров Telegram из URL:', error);
-    alert(`Ошибка при обработке данных авторизации: ${error.message}`);
-  }
-}
-
-// Функция для отправки данных пользователя на сервер
-function sendUserDataToServer(userData) {
-  console.log('Отправка данных пользователя на сервер...');
-
-  // Создаем объект с данными для отправки
-  // Вы можете выбрать нужные поля из userData или отправить весь объект
-  const dataToSend = {
-    user: userData,
-    timestamp: new Date().toISOString()
-  };
-
-  // Отправляем данные на сервер
-  vpnApi.validateTelegramAuthFormUrlencoded(dataToSend)
-    .then(response => {
-      console.log('Данные успешно отправлены на сервер:', response);
-      // Здесь можно обработать ответ от сервера
-    })
-    .catch(error => {
-      console.error('Ошибка при отправке данных на сервер:', error);
-      // Здесь можно обработать ошибку
-    });
-}
-
-// Функция для отправки initData на сервер (для верификации)
-function sendInitDataToServer(initData) {
-  console.log('Отправка initData на сервер для верификации...');
-  // Здесь можно добавить код для отправки initData на сервер
-  // например, через API:
-  // vpnApi.verifyTelegramData({ initData })
-  //   .then(response => console.log('Верификация успешна:', response))
-  //   .catch(error => console.error('Ошибка верификации:', error));
-}
-
 const selectedServer = ref(null);
-const subscriptionPeriods = ref([
-  { value: '1m', label: '1 месяц', description: 'Краткосрочная подписка', price: '500 ₽' },
-  { value: '6m', label: '6 месяцев', description: 'Среднесрочная подписка', price: '2700 ₽' },
-  { value: '12m', label: '12 месяцев', description: 'Долгосрочная подписка', price: '5000 ₽' }
-]);
-const deviceOptions = ref([
-  { value: 1, label: '1 устройство', description: 'Для одного пользователя', price: '0 ₽' },
-  { value: 3, label: '3 устройства', description: 'Для семьи', price: '+1000 ₽' },
-  { value: 5, label: '5 устройств', description: 'Для команды', price: '+2000 ₽' }
-]);
 const selectedPeriod = ref('1m');
 const selectedDeviceCount = ref(1);
 const promoCode = ref('');
 const promoCodeApplied = ref(false);
 const promoDiscount = ref(0);
+const isCreatingConfig = ref(false);
+const paymentUrlRef = ref(null); // Для хранения URL платежа
+const showPaymentButton = ref(false); // Флаг отображения кнопки оплаты
 
+// Определяем тарифные планы
+const subscriptionPeriods = [
+  {
+    value: '1m',
+    label: '1 месяц',
+    description: 'Базовая подписка',
+    price: '400 ₽',
+    priceValue: 400
+  },
+  {
+    value: '3m',
+    label: '3 месяца',
+    description: 'Выгоднее на 15%',
+    price: '1020 ₽',
+    priceValue: 1020
+  },
+  {
+    value: '12m',
+    label: '12 месяцев',
+    description: 'Выгоднее на 25%',
+    price: '3600 ₽',
+    priceValue: 3600
+  }
+];
+
+const deviceOptions = [
+  {
+    value: 1,
+    label: '1 устройство',
+    description: 'Базовый тариф',
+    price: 'Включено',
+    priceValue: 0
+  },
+  {
+    value: 3,
+    label: '3 устройства',
+    description: 'Для семьи',
+    price: '+200 ₽',
+    priceValue: 200
+  },
+  {
+    value: 5,
+    label: '5 устройств',
+    description: 'Максимум',
+    price: '+300 ₽',
+    priceValue: 300
+  }
+];
+
+// Функция для расчета общей стоимости
 const calculateTotalPrice = () => {
-  let periodPrice = 0;
-  let devicePrice = 0;
+  const periodPrice = subscriptionPeriods.find(p => p.value === selectedPeriod.value)?.priceValue || 0;
+  const devicePrice = deviceOptions.find(d => d.value === selectedDeviceCount.value)?.priceValue || 0;
+  let total = periodPrice + devicePrice;
 
-  const periodItem = subscriptionPeriods.value.find(p => p.value === selectedPeriod.value);
-  if (periodItem) {
-    periodPrice = parseInt(periodItem.price.replace(/[^\d]/g, ''));
+  if (promoCodeApplied.value) {
+    total -= promoDiscount.value;
   }
 
-  const deviceItem = deviceOptions.value.find(d => d.value === selectedDeviceCount.value);
-  if (deviceItem) {
-    devicePrice = parseInt(deviceItem.price.replace(/[^\d]/g, ''));
+  return total;
+};
+
+// Применение промокода
+const applyPromoCode = () => {
+  // Здесь должна быть логика проверки промокода через API
+  // Пока сделаем просто имитацию
+  if (promoCode.value) {
+    setTimeout(() => {
+      promoCodeApplied.value = true;
+      promoDiscount.value = 100; // Представим, что скидка 100 рублей
+      toast.add({ severity: 'success', summary: 'Успешно!', detail: 'Промокод успешно применен', life: 3000 });
+    }, 500);
   }
+};
 
-  const totalBeforeDiscount = periodPrice + devicePrice;
-  return promoCodeApplied.value ? totalBeforeDiscount - promoDiscount.value : totalBeforeDiscount;
-}
+// Функция для оплаты и создания конфигурации
+const pay = async () => {
+  isCreatingConfig.value = true;
 
-function onServerSelect(server) {
-  selectedServer.value = server;
-}
+  try {
+    // Сначала создаем объект с параметрами заказа
+    const orderParams = {
+      countryId: selectedServer.value?.id,
+      months: selectedPeriod.value === '1m' ? 1 : (selectedPeriod.value === '3m' ? 3 : 12),
+      configsCount: selectedDeviceCount.value
+      // promoCode: promoCodeApplied.value ? promoCode.value : undefined
+    };
 
-function nextStep() {
-  activeStep.value++;
-}
+    // Отправляем запрос на создание конфигурации VPN
+    const response = await vpnApi.createVpnConfigs(orderParams);
 
-function prevStep() {
-  activeStep.value--;
-}
+    // Если в ответе есть paymentUrl
+    if (response && response.paymentUrl) {
+      // Сохраняем URL для возможности повторного открытия
+      paymentUrlRef.value = response.paymentUrl;
+      showPaymentButton.value = true;
 
-function pay() {
-  // Проверяем наличие telegramId
-  if (!telegramId.value) {
-    alert('Ошибка авторизации: Telegram ID не найден');
-    return;
-  }
-
-  // Проверяем наличие выбранного сервера с подробной диагностикой
-  if (!selectedServer.value) {
-    alert('Не ��ыбран сервер');
-    return;
-  }
-
-  // Выводим в консоль содержимое объекта сервера для отладки
-  console.log('Выбранный сервер:', selectedServer.value);
-
-  // Получаем countryId или id из выбранного сервера
-  // Проверяем оба свойства, так как структура объекта сервера может отличаться
-  const countryId = selectedServer.value.countryId || selectedServer.value.id;
-
-  if (!countryId) {
-    // Выводим полную информацию о сервере для диагностики
-    console.error('Ошибка: Не найден countryId в объекте сервера:', selectedServer.value);
-    alert(`Не найден идентификатор сервера в выбранном сервере: ${selectedServer.value.nameRu || 'Неизвестный'}`);
-    return;
-  }
-
-  // Определяем количество месяцев на основе выбранного периода
-  let months = 1;
-  switch (selectedPeriod.value) {
-    case '1m': months = 1; break;
-    case '6m': months = 6; break;
-    case '12m': months = 12; break;
-  }
-
-  // Используем количество устройств как configsCount
-  const configsCount = selectedDeviceCount.value;
-
-  // Выводим информацию об отправляемых параметрах для проверки
-  console.log('Параметры запроса:', {
-    countryId,
-    months,
-    configsCount,
-    telegramId: telegramId.value
-  });
-
-  // Индикатор загрузки
-  const isLoading = ref(true);
-
-  // Отправляем запрос на бэкенд
-  vpnApi.createVpnConfigs({ countryId, months, configsCount, telegramId: telegramId.value })
-      .then(response => {
-        // Теперь сервер возвращает JSON с URL
-        if (response.status === "success" && response.paymentUrl) {
-          // Переходим на страницу оплаты в этой же вкладке
-          window.location.href = response.paymentUrl;
-        } else {
-          alert(`Ошибка: ${response.message || 'Не удалось получить URL для оплаты'}`);
+      // Проверяем, запущены ли мы в Telegram Mini App
+      if (window.Telegram?.WebApp) {
+        // Для Telegram используем специальный метод открытия в браузере
+        window.Telegram.WebApp.openLink(response.paymentUrl);
+      } else {
+        // Пробуем открыть в дефолтном браузере системы
+        try {
+          // Для iOS/macOS могут работать URI схемы
+          if (/(iPhone|iPad|Macintosh)/i.test(navigator.userAgent)) {
+            window.location.href = `x-web-search://?${encodeURIComponent(response.paymentUrl)}`;
+          } else {
+            // Стандартный способ открытия в новом окне
+            window.open(response.paymentUrl, '_blank', 'noopener,noreferrer');
+          }
+        } catch (e) {
+          console.error('Ошибка при открытии ссылки:', e);
+          // Если не удалось открыть, просто открываем в новом окне
+          window.open(response.paymentUrl, '_blank');
         }
-      })
-      .catch(error => {
-        console.error('Ошибка при создании VPN конфигурации:', error);
-        alert(`Ошибка при создании VPN конфигурации: ${error.response?.data?.message || error.message}`);
-      });
-}
-</script>
+      }
+      return; // Не продолжаем дальнейшее выполнение
+    }
 
+    // Показываем сообщение об успешном создании
+    toast.add({
+      severity: 'success',
+      summary: 'Успех!',
+      detail: 'Конфигурация VPN успешно создана. Теперь вы можете скачать её в разделе "Мои конфигурации".',
+      life: 5000
+    });
+
+    // Уведомляем родительский компонент о создании конфигурации
+    emit('config-created', response);
+
+  } catch (error) {
+    console.error('Ошибка при создании конфигурации:', error);
+    toast.add({
+      severity: 'error',
+      summary: 'Ошибка!',
+      detail: 'Не удалось создать VPN конфигурацию. Пожалуйста, попробуйте снова.',
+      life: 5000
+    });
+  } finally {
+    isCreatingConfig.value = false;
+  }
+};
+
+// Определяем emits для связи с родительским компонентом
+const emit = defineEmits(['config-created']);
+</script>
