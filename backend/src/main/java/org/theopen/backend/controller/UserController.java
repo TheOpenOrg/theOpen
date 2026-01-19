@@ -39,6 +39,8 @@ public class UserController {
         HttpHeaders headers = new HttpHeaders();
         headers.add("Authorization", "Bearer " + userDto.getAccessToken());
 
+        log.info(">> Успешная авторизация пользователя: {}, токен создан", authRequest.getId());
+
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(userDto);

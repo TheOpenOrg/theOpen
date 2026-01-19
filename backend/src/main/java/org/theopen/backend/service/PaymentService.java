@@ -35,6 +35,9 @@ public class PaymentService {
     @Value("${tinkoff.apiUrl}")
     private String tinkoffApiUrl;
 
+    @Value("${payment.notificationUrl}")
+    private String notificationUrl;
+
     public Optional<Payment> createPaymentLink(PaymentRequestDto request) {
         Map<String, Object> body = new HashMap<>();
         body.put("TerminalKey", terminalKey);
@@ -43,7 +46,7 @@ public class PaymentService {
         String orderId = "theOpen-" + System.currentTimeMillis() + "-" + (int)(Math.random()*1000);
         body.put("OrderId", orderId);
         body.put("Description", request.getDescription());
-        body.put("NotificationURL", "https://organic-fortnight-4wwqjq74qp527477-8080.app.github.dev/api/payment/notify");
+        body.put("NotificationURL", notificationUrl);
 
         String token = generateToken(body);
         body.put("Token", token);
@@ -225,4 +228,3 @@ public class PaymentService {
         }
     }
 }
-

@@ -1,4 +1,4 @@
-FROM openjdk:19-slim-buster
+FROM eclipse-temurin:21-jdk-noble
 
 WORKDIR /.
 COPY target/theopen.jar .
